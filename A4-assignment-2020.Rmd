@@ -1,0 +1,179 @@
+---
+title: "Assignment 4"
+author: "Muhammad Ahmad, 301297154"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+For this assignment, you will be working with two datasets posted on the course Canvas page. The first, "lotto_data.csv", captures the in-store sales in the Lower Mainland area (does not include online sales) of weekly lottery games in BC. The games included are *BC 49*, *Lotto 6/49*, and *Extra*. You can find details about *BC 49* and *Lotto 6/49* on the [BC Lottery commissions webpage](https://lotto.bclc.com). The *Extra* game can be added on to either *BC 49* or *Lotto 6/49* and is the same game no matter which game the customer adds on to. 
+
+The second data that you will use "weather_vancouver_daily.csv" captures daily weather conditions in Vancouver.
+
+
+
+```{r, results = "hide"}
+
+
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+```
+
+### Question 1
+
+A. Read in the raw lottery data, "lotto_data.csv", using the appropriate command from `readr` and look at the structure of the data. Which variables come in as characters and not numbers? 
+B. Convert any character variables to numeric using `mutate()` and one of the `parse_` functions where the underlying information is a number but they were imported as character. 
+C. Filter the data to only keep observations from January 1, 2014 through December 31, 2018. 
+D. Mutate the sales and jackpot variables such that each unit for sales represents 1 thousand dollars and each unit for jackpot represents 1 million dollars. This will make it easier to intrepret results and figures from later questions. 
+
+
+### Answer
+```{r}
+lotto<- read_csv("lotto_data.csv")
+str(lotto)
+
+
+lotto1<-mutate(lotto, jackpot=parse_number(jackpot))
+
+lotto2 <- filter(lotto1, date>="2014-01-01" & date<="2018-12-31")
+  lotto3<- mutate(lotto2, sales=sales/1000, jackpot=jackpot/1000000)
+```
+
+### Question 2
+
+A. Plot the daily sales for the 5 year period using `geom_line()` allowing for a different line for each of the three types of lottery game. Which game appears to sell the most tickets? Can you tell which has the most variation in sales? 
+B. Group the data by type and drawdate and create a new tibble that represents the total sales for each game for each drawdate (so you are adding up sales of tickets in the days leading up to the lottery draw). Keep the jackpot information about the draw in your new tibble. *Hint: there is a `sum()` function available in the `summarize()` and you could use `mean()` `min()` or `max()` to keep the jackpot amount which doesn't change within drawdate and game type*
+C. Create a plot that investigates the relationship between total sales for each draw and total jackpot for the `lotto649` game (the other two games have constant jackpot amounts). Comment on what you find. 
+
+### Answer
+```{r}
+
+ggplot(data=lotto3, mapping=aes(x=year(date), y=sales, linetype=type, color=type))+
+  geom_line()
+#lotto649 appears to have most daily sales as well as most variations
+
+lotto4<- group_by(lotto3,type, drawdate)
+
+lotto5<-mutate(lotto4,total_sales=sum(sales))
+   pivot_wider(lotto5,names_from=type, values_from=c(sales, jackpot))%>%
+  ggplot(mapping= aes(x=total_sales,y=sales_lotto649))+
+  geom_point()+
+  geom_smooth()
+#As total sales increases, the sales of lotto649 also increases, they seem to have positive correlation. Initially change in total sales  dont effect change in sales of lotto649
+
+```
+
+
+### Question 3
+
+Using your tibble created in Q2 that captures information by type of lottery and drawdate, explore the variation in jackpot size for the Lotto 6/49 game using tools from the lecture that discussed exploring the variation in one variable. What is the most common jackpot? What is the largest jackpot? 
+
+### Answer
+```{r}
+lotto6<-pivot_wider(lotto5,names_from=type, values_from=c(sales, jackpot))
+lotto7<-select(lotto6, sales_lotto649, jackpot_lotto649)
+
+ggplot(data=lotto7, mapping=aes(x=jackpot_lotto649))+
+  geom_histogram()
+
+max(lotto5$jackpot)
+# largest jackpot is 64million.(lotto649)
+
+```
+### Question 4
+
+A. Install the package `lubridate` and create a variable in your original tibble (the one not collapsed to drawdate) that captures the day of the week. 
+
+B. Explore total sales by day of the week first using a boxplot (`geom_boxplot`). Which day has the most sales? Which days have the most variation? Also plot the variation by day of week using a violin plot (`geom_violin`). Explain what a violin plot is and whether you learn anything new compared to the boxplot. 
+
+### Answer
+```{r}
+lotto8 <-mutate(lotto3, day=wday(date))
+lotto8%>%
+ ggplot(mapping=aes(y=sales, x=day))+
+ geom_boxplot(aes(group=day))
+
+
+#month is ord.factor so it is number that repersents a month 
+
+lotto8 %>%
+  ggplot(mapping=aes(x=day, y=sales)) +
+  geom_violin(aes(group=day))
+#from the boxplot it appears that thursday has highest median sales, sunday and thursday seem to have highest variations (about the same in both). Voilin plot shows probability density, on any given day proabaility of sales being on lower than medianis higher compared to sales above median.
+```
+
+### Question 5
+
+Use your data visualization skills to investigate the relationship between sales for the BC 49 game and the jackpot for the Lotto 6/49 game. Explain what you see and what factors you think drive the pattern. *Hint: You may find it easier to get the data in the format you want by using the `pivot_wider` function so that each observation is a day and captures various information about that day, including the Lotto 6/49 jackpot.*
+
+### Answer
+```{r}
+pivot_wider(lotto3,names_from=type, values_from=c(sales, jackpot))%>%
+ggplot(mapping=aes(x=sales_bc49, y=jackpot_lotto649 ))+
+geom_smooth()
+#There seems to be no relation until 75k bc49 sales, but after 75k sakes jackpot 6/49 increase with increase in sales of bc49, positive correlation.
+```
+
+### Question 6
+
+A. Read in the daily weather data posted on Canvas `"weatherstats_vancouver_daily.csv"` 
+B. Select the following columns into a tibble: `date, min_temperature, avg_temperature, max_temperature, precipitation`
+C. What type are the temperature variables? 
+D. Parse the `temperature` variables into numbers since they are currently strings and contain the type of measurement `"celcius"`. 
+E. Filter the data to only include days from January 1, 2014 through December 31, 2018 (similar to lottery data)
+F. Create a variable capturing the month and explore the variation in `precipitation` for each month. Which months do we get the most precipiatation? Which months have the most variation in precipiatation?
+
+
+### Answer 
+```{r}
+weather<-read_csv("weatherstats_vancouver_daily.csv")
+weather1<-select(weather, date, min_temperature, avg_temperature, max_temperature, precipitation)
+str(weather1)
+#temperature are character variable
+weather2<-mutate(weather1, min_temperature=parse_number(min_temperature),avg_temperature=parse_number(avg_temperature), max_temperature=parse_number(max_temperature))
+weather3<-filter(weather2,date>="2014-01-01" & date<="2018-12-31")
+weather4 <-mutate(weather3, month=month(date))
+weather4%>%
+   ggplot(mapping=aes(x=month, y=precipitation)) +
+  geom_boxplot(aes(group=month))
+#January, march, november and december appear to have most variation in precipitation, November has the highest median precipitation.
+  
+
+```
+### Question 7
+
+A. Summarize your daily lottery data to capture the total number of sales on a given day for all three game types. Your summarized data should have one observation per day. Also keep the maximum jackpot for the day's sales (which will be the Lotto 6/49 jackpot). 
+
+B. Join this daily lottery ticket data with your daily weather tibble that has the `date, min_temperature, avg_temperature, max_temperature, precipitation` variables. 
+
+
+### Answer 
+```{r}
+lotto9<- group_by(lotto3, date)
+
+lotto11<-mutate(lotto9,total_sales=sum(sales),max_jackpot=max(jackpot))
+join1<- full_join(lotto11,weather4)
+
+```
+
+### Question 8
+
+Perform an exploratory data analysis to learn about the relationship between weather conditions and lottery ticket sales. Provide at least one compelling visualization and a detailed discussion of what you learn, whether there are any surprising findings, and what additional questions your EDA lead you to generate. **Note: no two assignmets should overlap on this question. A prize point for the top 2 examples.**
+
+### Answer
+```{r}
+ggplot(data=join1,mapping=aes(y=total_sales,x=avg_temperature))+
+geom_smooth()
+#there seems to be a polynomial(quadratic most proabably) relationship, however this needs to be explored further before making any judgements. 
+```
+### Question 8
+
+Perform an exploratory data analysis investigating a question you find interesting about the lottery sales data that you did not already do above. Explain the motivation behind your question and describe / interpret your exploratory analysis. **Note: no two assignmets should overlap on this question and this should not be closely related to Question 7 on your assignment or anyone else's assignment. A prize point for the top 2 examples.**
+
+### Answer
+```{r}
+ggplot(lotto6, aes(x=jackpot_lotto649)) +
+  geom_density()
+#To be honnest it's not a shock to me, I obviously like any other rational person would expect the likely hood of winning a lottery to be very low. Naturally I just wanted to see the distribution of the jackpot of lotto649. 
+```
